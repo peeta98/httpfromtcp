@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 )
 
@@ -21,7 +22,9 @@ func main() {
 	for {
 		conn, err := tcpListener.Accept()
 		if err != nil {
-			log.Fatalf("could not wait for a connection: %s\n", err.Error())
+			// Using log.Fatal() makes deferred functions not run!
+			fmt.Printf("\"could not wait for a connection: %s\n", err.Error())
+			os.Exit(1)
 		}
 
 		fmt.Printf("A connection has been accepted from %s\n", conn.RemoteAddr())
