@@ -48,7 +48,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		bytesRead, err := reader.Read(buf[readToIndex:])
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				request.state = Done
+				if request.state != Done {
+					return nil, fmt.Errorf("incomplete request")
+				}
 				break
 			}
 			return nil, err
