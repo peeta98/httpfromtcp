@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/peeta98/httpfromtcp/internal/headers"
 	"github.com/peeta98/httpfromtcp/internal/request"
 	"log"
 	"net"
@@ -33,11 +34,23 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Println("Request line:")
-		fmt.Println("- Method:", req.RequestLine.Method)
-		fmt.Println("- Target:", req.RequestLine.RequestTarget)
-		fmt.Println("- Version:", req.RequestLine.HttpVersion)
+		printRequestLine(req.RequestLine)
+		printHeaders(req.Headers)
 
 		fmt.Printf("Connection to %s closed\n", conn.RemoteAddr())
+	}
+}
+
+func printRequestLine(rl request.RequestLine) {
+	fmt.Println("Request line:")
+	fmt.Println("- Method:", rl.Method)
+	fmt.Println("- Target:", rl.RequestTarget)
+	fmt.Println("- Version:", rl.HttpVersion)
+}
+
+func printHeaders(h headers.Headers) {
+	fmt.Println("Headers: ")
+	for k, v := range h {
+		fmt.Printf("- %s: %s\n", k, v)
 	}
 }
