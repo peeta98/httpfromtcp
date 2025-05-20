@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/peeta98/httpfromtcp/internal/headers"
 	"io"
 	"strings"
 )
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     headers.Headers
 	state       requestState
 }
 
@@ -23,6 +25,7 @@ type requestState int
 
 const (
 	Initialized requestState = iota
+	ParsingHeaders
 	Done
 )
 
@@ -34,7 +37,10 @@ const (
 func RequestFromReader(reader io.Reader) (*Request, error) {
 	buf := make([]byte, bufferSize)
 	readToIndex := 0
-	request := &Request{state: Initialized}
+	request := &Request{
+		state:   Initialized,
+		Headers: headers.NewHeaders(),
+	}
 
 	for request.state != Done {
 		// Grow buffer if needed
@@ -49,7 +55,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				if request.state != Done {
-					return nil, fmt.Errorf("incomplete request")
+					return nil, fmt.Errorf("incomplete request, in state: %d, read n bytes on EOF: %d", request.state, bytesRead)
 				}
 				break
 			}
@@ -127,6 +133,21 @@ func requestLineFromString(str string) (*RequestLine, error) {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
+	totalBytesParsed := 0
+	for r.state != Done {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+		if err != nil {
+			return 0, err
+		}
+		totalBytesParsed += n
+		if n == 0 {
+			break
+		}
+	}
+	return totalBytesParsed, nil
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
 	switch r.state {
 	case Initialized:
 		requestLine, n, err := parseRequestLine(data)
@@ -139,8 +160,17 @@ func (r *Request) parse(data []byte) (int, error) {
 		}
 
 		r.RequestLine = *requestLine
-		r.state = Done
+		r.state = ParsingHeaders
 
+		return n, nil
+	case ParsingHeaders:
+		n, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+		if done {
+			r.state = Done
+		}
 		return n, nil
 	case Done:
 		return 0, errors.New("error: trying to read data in a done state")
