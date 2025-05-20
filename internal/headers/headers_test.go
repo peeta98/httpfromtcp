@@ -38,6 +38,16 @@ func TestHeaders_Parse(t *testing.T) {
 	assert.Equal(t, 25, n)
 	assert.False(t, done)
 
+	// Test: Add new value to existing header
+	headers = map[string]string{"set-person": "peeta-loves-go"}
+	data = []byte("Set-Person: peeta-hates-javascript\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	require.NotNil(t, headers)
+	assert.Equal(t, "peeta-loves-go, peeta-hates-javascript", headers["set-person"])
+	assert.Equal(t, 36, n)
+	assert.False(t, done)
+
 	// Test: Valid done
 	headers = NewHeaders()
 	data = []byte("\r\n\r\n  ")
