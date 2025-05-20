@@ -55,6 +55,12 @@ func (h Headers) isValidTokens(value string) bool {
 }
 
 func (h Headers) Set(key, value string) {
+	v, ok := h[key]
+	if ok {
+		h[key] = fmt.Sprintf("%s, %s", v, value)
+		return
+	}
+
 	h[key] = value
 }
 
