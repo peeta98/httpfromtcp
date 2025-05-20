@@ -34,12 +34,17 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return 0, false, fmt.Errorf("invalid header name: %s", key)
 	}
 
-	value := strings.TrimSpace(string(parts[1]))
 	key = strings.TrimSpace(key)
 
 	if !h.isValidTokens(key) {
 		return 0, false, fmt.Errorf("invalid header token found: %s", key)
 	}
+
+	if len(parts) != 2 {
+		return 0, false, fmt.Errorf("malformed header line: %s", string(rawHeaderLine))
+	}
+
+	value := strings.TrimSpace(string(parts[1]))
 
 	h.Set(key, value)
 	return idx + 2, false, nil
