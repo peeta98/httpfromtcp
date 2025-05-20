@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"github.com/peeta98/httpfromtcp/internal/headers"
 	"io"
+	"strconv"
 	"strings"
 )
 
 type Request struct {
-	RequestLine RequestLine
-	Headers     headers.Headers
-	state       requestState
+	RequestLine    RequestLine
+	Headers        headers.Headers
+	Body           []byte
+	bodyLengthRead int
+	state          requestState
 }
 
 type RequestLine struct {
@@ -26,6 +29,7 @@ type requestState int
 const (
 	Initialized requestState = iota
 	ParsingHeaders
+	ParsingBody
 	Done
 )
 
@@ -38,8 +42,10 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	buf := make([]byte, bufferSize)
 	readToIndex := 0
 	request := &Request{
-		state:   Initialized,
-		Headers: headers.NewHeaders(),
+		state:          Initialized,
+		Headers:        headers.NewHeaders(),
+		Body:           make([]byte, 0),
+		bodyLengthRead: 0,
 	}
 
 	for request.state != Done {
@@ -169,9 +175,33 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 			return 0, err
 		}
 		if done {
-			r.state = Done
+			r.state = ParsingBody
 		}
 		return n, nil
+	case ParsingBody:
+		contentLengthStr, ok := r.Headers.Get("Content-Length")
+		if !ok {
+			r.state = Done
+			return 0, nil
+		}
+
+		contentLength, err := strconv.Atoi(contentLengthStr)
+		if err != nil {
+			return 0, fmt.Errorf("malformed Content-Length: %s", err)
+		}
+
+		r.Body = append(r.Body, data...)
+		r.bodyLengthRead += len(data)
+
+		if r.bodyLengthRead > contentLength {
+			return 0, errors.New("error: length of body greater than content-length")
+		}
+
+		if r.bodyLengthRead == contentLength {
+			r.state = Done
+		}
+
+		return len(data), nil
 	case Done:
 		return 0, errors.New("error: trying to read data in a done state")
 	default:
