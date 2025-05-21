@@ -36,6 +36,7 @@ func main() {
 
 		printRequestLine(req.RequestLine)
 		printHeaders(req.Headers)
+		printBody(string(req.Body))
 
 		fmt.Printf("Connection to %s closed\n", conn.RemoteAddr())
 	}
@@ -53,4 +54,9 @@ func printHeaders(h headers.Headers) {
 	for k, v := range h {
 		fmt.Printf("- %s: %s\n", k, v)
 	}
+}
+
+func printBody(body string) {
+	fmt.Println("Body: ")
+	fmt.Println(body)
 }
