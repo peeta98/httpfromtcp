@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/peeta98/httpfromtcp/internal/request"
 	"github.com/peeta98/httpfromtcp/internal/response"
@@ -11,7 +10,7 @@ import (
 	"sync/atomic"
 )
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(w *response.Writer, req *request.Request)
 
 type HandlerError struct {
 	StatusCode response.StatusCode
@@ -76,29 +75,16 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 
+	w := response.NewWriter(conn)
+
 	req, err := request.RequestFromReader(conn)
 	if err != nil {
-		handlerError := &HandlerError{
-			StatusCode: response.StatusCodeBadRequest,
-			Message:    err.Error(),
-		}
-		handlerError.Write(conn)
+		w.WriteStatusLine(response.StatusCodeBadRequest)
+		body := []byte(fmt.Sprintf("Error parsing request: %v", err))
+		w.WriteHeaders(response.GetDefaultHeaders(len(body)))
+		w.WriteBody(body)
 		return
 	}
 
-	buf := new(bytes.Buffer)
-
-	handlerError := s.handler(buf, req)
-	if handlerError != nil {
-		handlerError.Write(conn)
-		return
-	}
-
-	// Write the status line first ("HTTP/1.1 200 OK")
-	response.WriteStatusLine(conn, response.StatusCodeOK)
-
-	defaultHeaders := response.GetDefaultHeaders(buf.Len())
-	// After that, write the headers
-	response.WriteHeaders(conn, defaultHeaders)
-	conn.Write(buf.Bytes())
+	s.handler(w, req)
 }
