@@ -81,6 +81,11 @@ func (h Headers) Override(key, value string) {
 	h[key] = value
 }
 
+func (h Headers) Remove(key string) {
+	key = strings.ToLower(key)
+	delete(h, key)
+}
+
 func isTChar(r rune) bool {
 	switch {
 	case unicode.IsLetter(r), unicode.IsDigit(r):

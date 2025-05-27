@@ -1,13 +1,17 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"github.com/peeta98/httpfromtcp/internal/request"
 	"github.com/peeta98/httpfromtcp/internal/response"
 	"github.com/peeta98/httpfromtcp/internal/server"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 )
 
@@ -28,14 +32,24 @@ func main() {
 }
 
 func handler(w *response.Writer, req *request.Request) {
-	switch req.RequestLine.RequestTarget {
-	case "/yourproblem":
+	reqPath := req.RequestLine.RequestTarget
+
+	if reqPath == "/yourproblem" {
 		handler400(w, req)
-	case "/myproblem":
-		handler500(w, req)
-	default:
-		handler200(w, req)
+		return
 	}
+
+	if reqPath == "/myproblem" {
+		handler500(w, req)
+		return
+	}
+
+	if strings.HasPrefix(reqPath, "/httpbin") {
+		proxyHandler(w, req)
+		return
+	}
+
+	handler200(w, req)
 }
 
 func handler400(w *response.Writer, _ *request.Request) {
@@ -87,4 +101,59 @@ func handler200(w *response.Writer, _ *request.Request) {
 	headers.Override("Content-Type", "text/html")
 	w.WriteHeaders(headers)
 	w.WriteBody(body)
+}
+
+func proxyHandler(w *response.Writer, req *request.Request) {
+	target := strings.TrimPrefix(req.RequestLine.RequestTarget, "/httpbin/")
+	url := "https://httpbin.org/" + target
+	fmt.Println("Proxying to", url)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		handler500(w, req)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Unexpected status: %s\n", resp.Status)
+		handler500(w, req)
+		return
+	}
+
+	w.WriteStatusLine(http.StatusOK)
+
+	headers := response.GetDefaultHeaders(0)
+	headers.Remove("Content-Length")
+	headers.Set("Transfer-Encoding", "chunked")
+	w.WriteHeaders(headers)
+
+	const maxChunkSize = 1024
+	buf := make([]byte, maxChunkSize)
+
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			fmt.Printf("Read %d bytes: %s\n", n, buf[:n])
+		}
+
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			fmt.Println("Error reading response body:", err)
+			return
+		}
+
+		_, err = w.WriteChunkedBody(buf[:n])
+		if err != nil {
+			fmt.Println("Error writing chunked body:", err)
+			break
+		}
+	}
+
+	_, err = w.WriteChunkedBodyDone()
+	if err != nil {
+		fmt.Println("Error writing chunked body done:", err)
+	}
 }
