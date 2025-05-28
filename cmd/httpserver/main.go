@@ -35,6 +35,7 @@ func main() {
 
 func handler(w *response.Writer, req *request.Request) {
 	reqPath := req.RequestLine.RequestTarget
+	reqMethod := req.RequestLine.Method
 
 	if reqPath == "/yourproblem" {
 		handler400(w, req)
@@ -51,11 +52,16 @@ func handler(w *response.Writer, req *request.Request) {
 		return
 	}
 
+	if reqPath == "/video" && reqMethod == "GET" {
+		videoHandler(w, req)
+		return
+	}
+
 	handler200(w, req)
 }
 
 func handler400(w *response.Writer, _ *request.Request) {
-	w.WriteStatusLine(http.StatusBadRequest)
+	w.WriteStatusLine(response.StatusCodeBadRequest)
 	body := []byte(`<html>
   <head>
     <title>400 Bad Request</title>
@@ -72,7 +78,7 @@ func handler400(w *response.Writer, _ *request.Request) {
 }
 
 func handler500(w *response.Writer, _ *request.Request) {
-	w.WriteStatusLine(http.StatusInternalServerError)
+	w.WriteStatusLine(response.StatusCodeInternalServerError)
 	body := []byte(`<html>
   <head>
     <title>500 Internal Server Error</title>
@@ -89,7 +95,7 @@ func handler500(w *response.Writer, _ *request.Request) {
 }
 
 func handler200(w *response.Writer, _ *request.Request) {
-	w.WriteStatusLine(http.StatusOK)
+	w.WriteStatusLine(response.StatusCodeOK)
 	body := []byte(`<html>
   <head>
     <title>200 OK</title>
@@ -123,7 +129,7 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 		return
 	}
 
-	w.WriteStatusLine(http.StatusOK)
+	w.WriteStatusLine(response.StatusCodeOK)
 
 	h := response.GetDefaultHeaders(0)
 	h.Remove("Content-Length")
@@ -172,4 +178,19 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 	if err != nil {
 		fmt.Println("Error writing trailers:", err)
 	}
+}
+
+func videoHandler(w *response.Writer, req *request.Request) {
+	w.WriteStatusLine(response.StatusCodeOK)
+
+	body, err := os.ReadFile("assets/vim.mp4")
+	if err != nil {
+		handler500(w, req)
+		return
+	}
+
+	headers := response.GetDefaultHeaders(len(body))
+	headers.Override("Content-Type", "video/mp4")
+	w.WriteHeaders(headers)
+	w.WriteBody(body)
 }
