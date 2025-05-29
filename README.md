@@ -24,7 +24,7 @@ httpfromtcp is a custom implementation of an HTTP/1.1 server built from the grou
 
 1.  Clone the repository:
     ```bash
-    git clone <your-repository-url>
+    git clone https://github.com/peeta98/httpfromtcp
     cd httpfromtcp
     ```
 2.  Run the server:
